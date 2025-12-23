@@ -37,13 +37,13 @@
     <link name="right_front_wheel">
     <visual>
       <geometry>
-        <cylinder length=".05" radius="0.05"/>
+        <cylinder length=".05" radius="0.1"/>
       </geometry>
       <material name="gray"/>
     </visual>
     <collision>
       <geometry>
-        <cylinder length=".05" radius="0.05"/>
+        <cylinder length=".05" radius="0.1"/>
       </geometry>
     </collision>
     <inertial>
@@ -64,13 +64,13 @@
   <link name="left_front_wheel">
     <visual>
       <geometry>
-        <cylinder length=".05" radius="0.05"/>
+        <cylinder length=".05" radius="0.1"/>
       </geometry>
       <material name="gray"/>
     </visual>
     <collision>
       <geometry>
-        <cylinder length=".05" radius="0.05"/>
+        <cylinder length=".05" radius="0.1"/>
       </geometry>
     </collision>
     <inertial>
@@ -91,13 +91,13 @@
   <link name="castor_wheel">
     <visual>
       <geometry>
-        <sphere radius="0.05"/>
+        <sphere radius="0.1"/>
       </geometry>
       <material name="gray"/>
     </visual>
     <collision>
       <geometry>
-        <sphere radius="0.05"/>
+        <sphere radius="0.1"/>
       </geometry>
     </collision>
     <inertial>
