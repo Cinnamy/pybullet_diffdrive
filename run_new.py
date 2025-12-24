@@ -2,6 +2,7 @@ import pybullet as pb
 import pybullet_data
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 pb.connect(pb.GUI)
 pb.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -23,7 +24,7 @@ pb.resetDebugVisualizerCamera(
 # wheel order: [right, left]
 motorIdx = [0, 1]
 
-RAY_LENGTH = 30.0
+RAY_LENGTH = 10.0
 SPEED = 30.0
 DISTANCE_45 = 2.3
 DISTANCE_0 = 1.5
@@ -49,7 +50,7 @@ pb.setJointMotorControl2(
     force=0,
 )
 
-maxTime = 100 
+maxTime = 80 
 dt = 1 / 60
 logTime = np.arange(0, maxTime, dt)
 
@@ -62,11 +63,16 @@ ray_colors = [
     [1, 1, 0]   # yellow 135°
 ]
 
+robot_positions = []
+lidar_points = []
+
 for t in logTime:
 
     pos, orn = pb.getBasePositionAndOrientation(obj)
     euler = pb.getEulerFromQuaternion(orn)
     angle = euler[2]
+
+    robot_positions.append([pos[0], pos[1]])
     
     # measure the distance to obstacles with rays
 
@@ -92,6 +98,7 @@ for t in logTime:
     for i, hit_fraction in enumerate(hit_fractions):
         if hit_fraction < 1.0:
             pb.addUserDebugLine(pos_from[i], hit_positions[i], ray_colors[i], lifeTime=0.1)
+            lidar_points.append([hit_positions[i][0], hit_positions[i][1]])
         else:
             pb.addUserDebugLine(pos_from[i], pos_to[i], [0.5, 0.5, 0.5], lifeTime=0.1)
     
@@ -111,3 +118,26 @@ for t in logTime:
             f"Скорости: {speeds[0]:.1f}, {speeds[1]:.1f}")
     
     pb.stepSimulation()
+
+robot_positions = np.array(robot_positions)
+lidar_points = np.array(lidar_points)
+
+plt.figure(figsize=(10, 8))
+plt.scatter(lidar_points[:, 0], lidar_points[:, 1], 
+            c='red', s=5, alpha=0.3, label='walls')
+plt.plot(robot_positions[:, 0], robot_positions[:, 1], 
+         'b-', linewidth=2, label='robot\'s path')
+plt.scatter(robot_positions[0, 0], robot_positions[0, 1], 
+            c='green', s=100, marker='o', label='start')
+plt.scatter(robot_positions[-1, 0], robot_positions[-1, 1], 
+            c='orange', s=100, marker='o', label='end')
+
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('Robot\'s path and walls')
+plt.legend()
+plt.grid(True)
+plt.axis('equal')
+
+plt.tight_layout()
+plt.show()
