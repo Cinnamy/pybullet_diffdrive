@@ -1,0 +1,34 @@
+<robot name="walls">
+
+<link name="world"/>
+
+<joint name="world_to_wall1" type="fixed">
+    <parent link="world"/>
+    <child link="wall1"/>
+    <origin xyz="0.505 0.0 0.5" rpy="0 0 0"/>
+</joint>
+
+<link name="wall1">
+    <collision>
+        <geometry>
+            <box size="0.1 3.0 1.0"/>
+        </geometry>
+    </collision>
+</link>
+
+<joint name="world_to_wall2" type="fixed">
+    <parent link="world"/>
+    <child link="wall2"/>
+    <origin xyz="0.505 1.5 0.5" rpy="0 0 1.5708"/>
+</joint>
+
+<link name="wall2">
+    <collision>
+        <geometry>
+            <box size="0.1 6.0 1.0"/>
+        </geometry>
+    </collision>
+</link>
+
+</robot>
+

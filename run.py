@@ -8,7 +8,8 @@ pb.setAdditionalSearchPath(pybullet_data.getDataPath())
 # load the plane to stand onto
 pb.loadURDF("plane.urdf")
 # elevate robot so that the wheels are touching the plane
-obj = pb.loadURDF("diff_drive.urdf", 0, 0, 0.1)
+obj = pb.loadURDF("diff_drive.urdf.xml", 0, 0, 0.1)
+wallsId = pb.loadURDF("walls.urdf.xml", useFixedBase=True)
 
 pb.setGravity(0, 0, -9.8)
 # wheel order: [right, left]
@@ -39,6 +40,24 @@ pb.setJointMotorControlArray(
     controlMode=pb.VELOCITY_CONTROL,
 )
 
+rayLength = 1.0
+angles = np.linspace(0.0, 2*np.pi, 360)
+x = rayLength * np.cos(angles)
+y = rayLength * np.sin(angles)
+h = 0.5
+z = h*np.ones(360)
+posFrom = np.tile([0,0,h], (360,1))
+posTo = np.vstack((x,y,z)).T
+print(posFrom)
+print(posTo)
+res = pb.rayTestBatch(
+    posFrom,
+    posTo
+)
+coords = [arr[3] for arr in res]
+xy = np.array([[coord[0], coord[1]] for coord in coords])
+print(xy)
+
 idx = 0
 for t in logTime:
     pb.stepSimulation()
@@ -47,13 +66,13 @@ for t in logTime:
     logX[idx] = pos[0]
     logY[idx] = pos[1]
     idx += 1
-    time.sleep(dt)
+    # time.sleep(dt)
 
 pb.disconnect()
 
-# show XY plot
+# show obstacles XY plot
 import matplotlib.pyplot as plt
 
-plt.plot(logX, logY)
+plt.plot(xy[:,0], xy[:,1])
 plt.axis("equal")
 plt.show()
