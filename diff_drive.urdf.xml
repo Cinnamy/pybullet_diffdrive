@@ -29,7 +29,7 @@
         <axis xyz="0 0 -1"/>
         <parent link="base"/>
         <child link="right_front_wheel"/>
-        <origin rpy="0 1.57079632679 0" xyz="0.15 -0.2 -0.05"/>
+        <origin rpy="0 1.57079632679 0" xyz="0.15 0.2 -0.05"/>
         <limit effort="100" velocity="100"/>
         <joint_properties damping="0.0" friction="0.0"/>
     </joint>
@@ -37,13 +37,13 @@
     <link name="right_front_wheel">
     <visual>
       <geometry>
-        <cylinder length=".05" radius="0.1"/>
+        <cylinder length=".05" radius="0.05"/>
       </geometry>
       <material name="gray"/>
     </visual>
     <collision>
       <geometry>
-        <cylinder length=".05" radius="0.1"/>
+        <cylinder length=".05" radius="0.05"/>
       </geometry>
     </collision>
     <inertial>
@@ -56,7 +56,7 @@
     <axis xyz="0 0 -1"/>
     <parent link="base"/>
     <child link="left_front_wheel"/>
-    <origin rpy="0 1.57079632679 0" xyz="-0.15 -0.2 -0.05"/>
+    <origin rpy="0 1.57079632679 0" xyz="-0.15 0.2 -0.05"/>
     <limit effort="100" velocity="100"/>
     <joint_properties damping="0.0" friction="0.0"/>
   </joint>
@@ -64,13 +64,13 @@
   <link name="left_front_wheel">
     <visual>
       <geometry>
-        <cylinder length=".05" radius="0.1"/>
+        <cylinder length=".05" radius="0.05"/>
       </geometry>
       <material name="gray"/>
     </visual>
     <collision>
       <geometry>
-        <cylinder length=".05" radius="0.1"/>
+        <cylinder length=".05" radius="0.05"/>
       </geometry>
     </collision>
     <inertial>
@@ -79,25 +79,52 @@
     </inertial>
   </link>
 
-  <joint name="castor_wheel_joint" type="spherical">
-    <axis xyz="1 1 1"/>
-    <parent link="base"/>
-    <child link="castor_wheel"/>
-    <origin rpy="0 0 0" xyz="0.0 0.2 -0.05"/>
-    <limit effort="100" velocity="100"/>
-    <joint_properties damping="0.0" friction="0.0"/>
-  </joint>
+  <joint name="right_back_wheel_joint" type="continuous">
+        <axis xyz="0 0 -1"/>
+        <parent link="base"/>
+        <child link="right_back_wheel"/>
+        <origin rpy="0 1.57079632679 0" xyz="0.15 -0.2 -0.05"/>
+        <limit effort="100" velocity="100"/>
+        <joint_properties damping="0.0" friction="0.0"/>
+    </joint>
 
-  <link name="castor_wheel">
+    <link name="right_back_wheel">
     <visual>
       <geometry>
-        <sphere radius="0.1"/>
+        <cylinder length=".05" radius="0.05"/>
       </geometry>
       <material name="gray"/>
     </visual>
     <collision>
       <geometry>
-        <sphere radius="0.1"/>
+        <cylinder length=".05" radius="0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <joint name="left_back_wheel_joint" type="continuous">
+    <axis xyz="0 0 -1"/>
+    <parent link="base"/>
+    <child link="left_back_wheel"/>
+    <origin rpy="0 1.57079632679 0" xyz="-0.15 -0.2 -0.05"/>
+    <limit effort="100" velocity="100"/>
+    <joint_properties damping="0.0" friction="0.0"/>
+  </joint>
+
+  <link name="left_back_wheel">
+    <visual>
+      <geometry>
+        <cylinder length=".05" radius="0.05"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length=".05" radius="0.05"/>
       </geometry>
     </collision>
     <inertial>
