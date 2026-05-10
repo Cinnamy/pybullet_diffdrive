@@ -9,7 +9,7 @@
 <joint name="world_to_wall1" type="fixed">
     <parent link="world"/>
     <child link="wall1"/>
-    <origin xyz="2.0 2.0 0.5" rpy="0 0 0"/>
+    <origin xyz="7.0 7.0 0.5" rpy="0 0 0"/>
 </joint>
 
 <link name="wall1">
@@ -29,7 +29,7 @@
 <joint name="world_to_wall2" type="fixed">
     <parent link="world"/>
     <child link="wall2"/>
-    <origin xyz="2.0 -2.0 0.5" rpy="0 0 0"/>
+    <origin xyz="7.0 3.0 0.5" rpy="0 0 0"/>
 </joint>
 
 <link name="wall2">
@@ -49,7 +49,7 @@
 <joint name="world_to_wall3" type="fixed">
     <parent link="world"/>
     <child link="wall3"/>
-    <origin xyz="-2.0 0.0 0.5" rpy="0 0 0"/>
+    <origin xyz="3.0 5.0 0.5" rpy="0 0 0"/>
 </joint>
 
 <link name="wall3">
@@ -69,7 +69,7 @@
 <joint name="world_to_wall4" type="fixed">
     <parent link="world"/>
     <child link="wall4"/>
-    <origin xyz="5.1 0.0 0.5" rpy="0 0 0"/>
+    <origin xyz="10.1 5.0 0.5" rpy="0 0 0"/>
 </joint>
 
 <link name="wall4">
@@ -89,7 +89,7 @@
 <joint name="world_to_wall5" type="fixed">
     <parent link="world"/>
     <child link="wall5"/>
-    <origin xyz="-5.1 0.0 0.5" rpy="0 0 0"/>
+    <origin xyz="-0.1 5.0 0.5" rpy="0 0 0"/>
 </joint>
 
 <link name="wall5">
@@ -109,7 +109,7 @@
 <joint name="world_to_wall6" type="fixed">
     <parent link="world"/>
     <child link="wall6"/>
-    <origin xyz="0.0 5.1 0.5" rpy="0 0 1.5708"/>
+    <origin xyz="5.0 10.1 0.5" rpy="0 0 1.5708"/>
 </joint>
 
 <link name="wall6">
@@ -129,7 +129,7 @@
 <joint name="world_to_wall7" type="fixed">
     <parent link="world"/>
     <child link="wall7"/>
-    <origin xyz="0.0 -5.1 0.5" rpy="0 0 1.5708"/>
+    <origin xyz="5.0 -0.1 0.5" rpy="0 0 1.5708"/>
 </joint>
 
 <link name="wall7">

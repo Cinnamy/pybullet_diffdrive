@@ -22,7 +22,7 @@ pb.setGravity(0, 0, -9.8)
 pb.loadURDF("plane.urdf")
 
 # Загружаем робота
-obj = pb.loadURDF("diff_drive.urdf.xml", -4, -4, 0.1)
+obj = pb.loadURDF("diff_drive.urdf.xml", 1, 1, 0.1)
 
 # Загружаем стены
 wallsId = pb.loadURDF(
@@ -55,17 +55,6 @@ grid = np.zeros(
     )
 )
 
-# wheel order: [right, left, right, left]
-motorIdx = [0, 1, 2, 3]
-
-SPEED = 8.0
-d = 2.0
-
-DISTANCE_FRONTSIDE = 2.83
-DISTANCE_TURN = 2.5
-DISTANCE_STOP = 0.7
-DISTANCE_SIDE = 0.9
-
 
 ########################################################################
 # Задаём углы и цвет лучей лидара для управления движением робота
@@ -93,7 +82,7 @@ ray_colors = [
 ########################################################################
 
 # общее время проезда робота
-maxTime = 890
+maxTime = 860
 # время перехода от проезда по периметру помещения к змейке
 midTime = 460
 
@@ -103,25 +92,85 @@ logTime = np.arange(0, maxTime, dt)
 
 RAY_LENGTH = 10.0
 RAY_NUMBER = 180
+WHEEL_RADIUS = 0.05
 
-robot_positions = []
+odometry_positions = []
+ground_truth_positions = []
 lidar_points = []
 all_observed_corners = []
+
+joint_states = pb.getJointStates(obj, [0, 1, 2, 3])
+
+last_angles = [
+    joint_states[0][0],
+    joint_states[1][0],
+    joint_states[2][0],
+    joint_states[3][0]
+]
+
+x = 0
+y = 0
+theta = 0
 
 for t in logTime:
 
     # ground truth
     pos, orn = pb.getBasePositionAndOrientation(obj)
 
-    y = pos[1]
-
     euler = pb.getEulerFromQuaternion(orn)
     angle = euler[2]
 
-    robot_positions.append([pos[0], pos[1]])
+    ground_truth_positions.append([pos[0], pos[1]])
 
     ####################################################################
-    # Пускаем 360 лучей для поиска углов
+    # Работаем с одометрией
+    ####################################################################
+
+    joint_states = pb.getJointStates(obj, [0, 1, 2, 3])
+    print(joint_states)
+
+    # Имитируем работу с энкодерами, получаем из них перемещение
+
+    delta_angle_right = (
+        (joint_states[0][0] - last_angles[0])
+        + (joint_states[2][0] - last_angles[2])
+    ) / 2
+
+    delta_angle_left = (
+        (joint_states[1][0] - last_angles[1])
+        + (joint_states[3][0] - last_angles[3])
+    ) / 2
+
+    delta_distance_right = WHEEL_RADIUS * delta_angle_right
+    delta_distance_left = WHEEL_RADIUS * delta_angle_left
+    delta_distance = (delta_distance_right + delta_distance_left) / 2
+
+    # Имитируем работу с IMU, получаем из него угол поворота
+
+    omega_z = pb.getBaseVelocity(obj)[1][2]
+    dtheta = omega_z * dt
+
+    # Обновляем положение робота
+
+    x += delta_distance * np.sin(theta + dtheta / 2)
+    y += delta_distance * np.cos(theta + dtheta / 2)
+
+    theta += dtheta
+    theta = np.arctan2(np.sin(theta), np.cos(theta))
+
+    odometry_positions.append([x, y])
+
+    # Сохраняем данные
+
+    last_angles = [joint_states[0][0], joint_states[1][0], joint_states[2][0], joint_states[3][0]]
+
+    print(
+        f"theta: {theta:.2f}, "
+        f"Положение: ({x:.2f}, {y:.2f}) "
+    )
+
+    ####################################################################
+    # Пускаем RAY_NUMBER лучей для поиска углов-ориентиров
     ####################################################################
 
     ray_angles = np.linspace(0.0, 2 * np.pi, RAY_NUMBER)
@@ -263,13 +312,16 @@ for t in logTime:
         f"{speeds[2]:.1f}, "
         f"{speeds[3]:.1f}"
     )
-    
+    print()
+
     pb.stepSimulation()
 
 
 # Преобразуем списки в numpy arrays
 
-robot_positions = np.array(robot_positions)
+odometry_positions = np.array(odometry_positions)
+
+ground_truth_positions = np.array(ground_truth_positions)
 
 lidar_points = np.array(lidar_points)
 
@@ -307,8 +359,8 @@ if len(all_observed_corners) > 0:
     )
 
 plt.plot(
-    robot_positions[:, 0],
-    robot_positions[:, 1],
+    ground_truth_positions[:, 0],
+    ground_truth_positions[:, 1],
     color="#c94016",
     linestyle="-",
     linewidth=2,
@@ -316,8 +368,8 @@ plt.plot(
 )
 
 plt.scatter(
-    robot_positions[0, 0],
-    robot_positions[0, 1],
+    ground_truth_positions[0, 0],
+    ground_truth_positions[0, 1],
     c='#194f28',
     s=100,
     marker='o',
@@ -325,8 +377,8 @@ plt.scatter(
 )
 
 plt.scatter(
-    robot_positions[-1, 0],
-    robot_positions[-1, 1],
+    ground_truth_positions[-1, 0],
+    ground_truth_positions[-1, 1],
     c='#e0a016',
     s=100,
     marker='o',

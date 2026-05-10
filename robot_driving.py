@@ -3,7 +3,6 @@ motorIdx = [0, 1, 2, 3]
 SPEED = 8.0
 d = 2.0
 
-#DISTANCE_FRONTSIDE = 2.83
 DISTANCE_FRONTSIDE = 1.4
 DISTANCE_TURN = 2.5
 DISTANCE_STOP = 1.5
@@ -50,7 +49,6 @@ def calculate_wheel_speeds_snake(
     if (
         dist_0 < DISTANCE_STOP
     ):
-        print('0')
         if (dist_90 < dist_270):
             return [SPEED, d, SPEED, d]
         else:
@@ -61,31 +59,25 @@ def calculate_wheel_speeds_snake(
         dist_45 > DISTANCE_FRONTSIDE
         and y >= DISTANCE_TURN    
     ):
-        print('1')
         return [d, SPEED, d, SPEED]
 
     if (
         dist_315 > DISTANCE_FRONTSIDE
         and y <= -DISTANCE_TURN
     ):
-        print('2')
         return [SPEED, d, SPEED, d]
 
     # Не врезаемся в левую стену
     if (
         dist_90 > DISTANCE_SIDE
-        #and dist_270 < DISTANCE_SIDE
     ):
-        print('3')
         return [d, SPEED, d, SPEED]
 
     # Не врезаемся в правую стену
     if (
         dist_90 < DISTANCE_SIDE
     ):
-        print('4')
         return [SPEED, d, SPEED, d]
 
     # Иначе едем вперёд
-    print('5')
     return [SPEED, SPEED, SPEED, SPEED]
