@@ -4,6 +4,8 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from robot_driving import *
+from corners_detection import *
 
 
 ########################################################################
@@ -28,7 +30,8 @@ wallsId = pb.loadURDF(
     useFixedBase=True
 )
 
-# Настраиваем камеру, с помощью которой смотрим на визуальное отображение сцены
+# Настраиваем камеру, с помощью которой смотрим 
+# на визуальное отображение сцены
 # pb.resetDebugVisualizerCamera(
 #     cameraDistance=7.0,
 #     cameraYaw=250,
@@ -38,7 +41,7 @@ wallsId = pb.loadURDF(
 
 
 ########################################################################
-# Задаём параметры карты
+# Задаём параметры карты и движения робота
 ########################################################################
 
 MAP_WIDTH = 12
@@ -51,6 +54,17 @@ grid = np.zeros(
         int(MAP_HEIGHT / RESOLUTION)
     )
 )
+
+# wheel order: [right, left, right, left]
+motorIdx = [0, 1, 2, 3]
+
+SPEED = 8.0
+d = 2.0
+
+DISTANCE_FRONTSIDE = 2.83
+DISTANCE_TURN = 2.5
+DISTANCE_STOP = 0.7
+DISTANCE_SIDE = 0.9
 
 
 ########################################################################
@@ -75,253 +89,20 @@ ray_colors = [
 
 
 ########################################################################
-# Функция для нахождения ориентиров (landmarks)
-########################################################################
-
-def detect_corners(
-    scan_points,
-    robot_x,
-    robot_y,
-    window=4,
-    min_angle_deg=70,
-    max_angle_deg=110,
-    min_segment_length=0.05,
-    max_gap=0.3,
-    max_distance=3.0,
-    merge_distance=0.2
-):
-
-    corners = []
-
-    points = np.array(scan_points)
-
-    if len(points) < 2 * window + 1:
-        return np.array(corners)
-
-    angles = np.arctan2(
-        points[:, 1] - robot_y,
-        points[:, 0] - robot_x
-    )
-
-    sorted_idx = np.argsort(angles)
-    points = points[sorted_idx]
-
-    robot_pos = np.array([robot_x, robot_y])
-
-    for i in range(window, len(points) - window):
-
-        curr_pt = points[i]
-
-        ################################################################
-        # Фильтр дальности
-        ################################################################
-
-        dist_to_robot = np.linalg.norm(curr_pt - robot_pos)
-
-        if dist_to_robot > max_distance:
-            continue
-
-        ################################################################
-        # Проверка разрывов скана
-        ################################################################
-
-        left_gap = np.linalg.norm(points[i] - points[i - 1])
-        right_gap = np.linalg.norm(points[i + 1] - points[i])
-
-        if left_gap > max_gap or right_gap > max_gap:
-            continue
-
-        ################################################################
-        # Вычисляем векторы
-        ################################################################
-
-        left_vec = points[i] - points[i - window]
-        right_vec = points[i + window] - points[i]
-
-        norm1 = np.linalg.norm(left_vec)
-        norm2 = np.linalg.norm(right_vec)
-
-        if (
-            norm1 < min_segment_length
-            or norm2 < min_segment_length
-        ):
-            continue
-
-        ################################################################
-        # Вычисляем угол
-        ################################################################
-
-        cos_theta = np.dot(left_vec, right_vec) / (norm1 * norm2)
-
-        cos_theta = np.clip(cos_theta, -1.0, 1.0)
-
-        angle = np.degrees(np.arccos(cos_theta))
-
-        ################################################################
-        # Ищем углы около 90°
-        ################################################################
-
-        if min_angle_deg <= angle <= max_angle_deg:
-
-            too_close = False
-
-            ################################################################
-            # Проверяем близость к найденным углам текущего скана
-            ################################################################
-
-            for c in corners:
-                if np.linalg.norm(curr_pt - c) < merge_distance:
-                    too_close = True
-                    break
-
-            ################################################################
-            # Проверяем близость к уже найденным углам
-            ################################################################
-
-            for c in all_observed_corners:
-                if np.linalg.norm(curr_pt - c) < merge_distance:
-                    too_close = True
-                    break
-
-            if not too_close:
-                corners.append(curr_pt)
-
-    return corners
-
-
-########################################################################
-# Управляем движением робота
-########################################################################
-
-# wheel order: [right, left, right, left]
-motorIdx = [0, 1, 2, 3]
-
-RAY_LENGTH = 5.0
-
-SPEED = 50.0
-d = 10.0
-
-DISTANCE_FRONTSIDE = 2.83
-DISTANCE_TURN = 2.0
-DISTANCE_STOP = 0.7
-DISTANCE_SIDE = 0.9
-
-
-def calculate_wheel_speeds_square(
-    dist_0,
-    dist_45,
-    dist_90,
-    dist_270,
-    dist_315,
-    y
-):
-
-    # Поворачиваем в углах направо
-    if dist_0 <= 3:
-        return [d, SPEED, d, SPEED]
-
-    # Не врезаемся в левую стену
-    if (
-        dist_270 < DISTANCE_SIDE
-        and dist_315 < DISTANCE_FRONTSIDE
-        and abs(y) < 4
-        and dist_45 < 4
-        and dist_90 < 4
-    ):
-        return [d, SPEED, d, SPEED]
-
-    # Не врезаемся в правую стену
-    if (
-        dist_90 < DISTANCE_SIDE
-        and dist_45 < DISTANCE_FRONTSIDE
-        and abs(y) < 4
-        and dist_315 < 4
-        and dist_270 < 4
-    ):
-        return [SPEED, d, SPEED, d]
-
-    # Иначе едем вперёд
-    return [SPEED, SPEED, SPEED, SPEED]
-
-
-def calculate_wheel_speeds_snake(
-    dist_0,
-    dist_45,
-    dist_90,
-    dist_270,
-    dist_315,
-    y
-):
-
-    ####################################################################
-    # Не врезаемся в стену впереди
-    ####################################################################
-
-    if dist_0 <= DISTANCE_STOP:
-
-        if dist_90 >= dist_270:
-            return [d, SPEED, d, SPEED]
-        else:
-            return [SPEED, d, SPEED, d]
-
-    ####################################################################
-    # Поворачиваем змейкой
-    ####################################################################
-
-    if (
-        y > 0
-        and dist_45 > DISTANCE_FRONTSIDE
-        and (dist_0 <= 3 or abs(y) > 4)
-    ):
-        return [d, SPEED, d, SPEED]
-
-    elif (
-        y < 0
-        and dist_315 > DISTANCE_FRONTSIDE
-        and (dist_0 <= 3 or abs(y) > 4)
-    ):
-        return [SPEED, d, SPEED, d]
-
-    ####################################################################
-    # Не врезаемся в левую стену
-    ####################################################################
-
-    if (
-        dist_270 < DISTANCE_SIDE
-        and dist_315 < DISTANCE_FRONTSIDE
-        and abs(y) < 4
-        and dist_45 < 4
-        and dist_90 < 4
-    ):
-        return [d, SPEED, d, SPEED]
-
-    ####################################################################
-    # Не врезаемся в правую стену
-    ####################################################################
-
-    if (
-        dist_90 < DISTANCE_SIDE
-        and dist_45 < DISTANCE_FRONTSIDE
-        and abs(y) < 4
-        and dist_315 < 4
-        and dist_270 < 4
-    ):
-        return [SPEED, d, SPEED, d]
-
-    # Иначе едем вперёд
-    return [SPEED, SPEED, SPEED, SPEED]
-
-
-########################################################################
 # Запускаем робота
 ########################################################################
 
-maxTime = 115
-midTime = 60
+# общее время проезда робота
+maxTime = 890
+# время перехода от проезда по периметру помещения к змейке
+midTime = 460
 
 dt = 1 / 60
 
 logTime = np.arange(0, maxTime, dt)
+
+RAY_LENGTH = 10.0
+RAY_NUMBER = 180
 
 robot_positions = []
 lidar_points = []
@@ -329,6 +110,7 @@ all_observed_corners = []
 
 for t in logTime:
 
+    # ground truth
     pos, orn = pb.getBasePositionAndOrientation(obj)
 
     y = pos[1]
@@ -342,16 +124,16 @@ for t in logTime:
     # Пускаем 360 лучей для поиска углов
     ####################################################################
 
-    ray_angles = np.linspace(0.0, 2 * np.pi, 360)
+    ray_angles = np.linspace(0.0, 2 * np.pi, RAY_NUMBER)
 
     pos_from = np.tile(
         [pos[0], pos[1], pos[2] + 0.1],
-        (360, 1)
+        (RAY_NUMBER, 1)
     )
 
-    ray_end_x = pos[0] + 360 * np.cos(ray_angles)
-    ray_end_y = pos[1] + 360 * np.sin(ray_angles)
-    ray_end_z = np.full(360, pos[2] + 0.1)
+    ray_end_x = pos[0] + RAY_LENGTH * np.cos(ray_angles)
+    ray_end_y = pos[1] + RAY_LENGTH * np.sin(ray_angles)
+    ray_end_z = np.full(RAY_NUMBER, pos[2] + 0.1)
 
     pos_to = np.vstack(
         (ray_end_x, ray_end_y, ray_end_z)
@@ -364,7 +146,7 @@ for t in logTime:
 
     hit_fractions = [ray[2] for ray in results]
 
-    distances = np.array(hit_fractions) * 360
+    distances = np.array(hit_fractions) * RAY_LENGTH
 
     hit_positions = [ray[3] for ray in results]
 
@@ -390,7 +172,8 @@ for t in logTime:
             detect_corners(
                 lidar_points_step,
                 pos[0],
-                pos[1]
+                pos[1],
+                all_observed_corners
             )
         )
     )
@@ -431,10 +214,7 @@ for t in logTime:
 
     dist_0, dist_45, dist_90, dist_270, dist_315 = distances
 
-    ####################################################################
     # Выбираем режим движения
-    ####################################################################
-
     if t < midTime:
 
         # Сначала обходим внешние стены
@@ -459,10 +239,7 @@ for t in logTime:
             y
         )
 
-    ####################################################################
     # Применяем скорости
-    ####################################################################
-
     pb.setJointMotorControlArray(
         bodyIndex=obj,
         jointIndices=motorIdx,
@@ -486,25 +263,11 @@ for t in logTime:
         f"{speeds[2]:.1f}, "
         f"{speeds[3]:.1f}"
     )
-
-    ####################################################################
-    # Останавливаем робота в середине маршрута
-    ####################################################################
-
-    if t == midTime:
-
-        pb.resetBaseVelocity(
-            obj,
-            linearVelocity=[0, 0, 0],
-            angularVelocity=[0, 0, 0]
-        )
-
+    
     pb.stepSimulation()
 
 
-########################################################################
 # Преобразуем списки в numpy arrays
-########################################################################
 
 robot_positions = np.array(robot_positions)
 
@@ -575,7 +338,7 @@ plt.ylabel('Y')
 
 plt.title('Путь робота и стены')
 
-plt.legend()
+plt.legend(loc='upper right')
 
 plt.gca().xaxis.set_major_locator(
     ticker.MultipleLocator(1)
