@@ -12,7 +12,7 @@ from corners_detection import *
 # Подключаем мир, робота, делаем первичные настройки
 ########################################################################
 
-# pb.connect(pb.GUI)
+#pb.connect(pb.GUI)
 pb.connect(pb.DIRECT)
 
 pb.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -36,7 +36,7 @@ wallsId = pb.loadURDF(
 #     cameraDistance=7.0,
 #     cameraYaw=250,
 #     cameraPitch=-90,
-#     cameraTargetPosition=[0, 0, 0.5]
+#     cameraTargetPosition=[5, 5, 0.5]
 # )
 
 
@@ -82,7 +82,8 @@ ray_colors = [
 ########################################################################
 
 # общее время проезда робота
-maxTime = 860
+maxTime = 865
+# maxTime = 460
 # время перехода от проезда по периметру помещения к змейке
 midTime = 460
 
@@ -108,9 +109,9 @@ last_angles = [
     joint_states[3][0]
 ]
 
-x = 0
-y = 0
-theta = 0
+x = 1.0
+y = 1.0
+theta = np.pi / 2
 
 for t in logTime:
 
@@ -147,16 +148,17 @@ for t in logTime:
 
     # Имитируем работу с IMU, получаем из него угол поворота
 
+    physics_dt = pb.getPhysicsEngineParameters()["fixedTimeStep"]
     omega_z = pb.getBaseVelocity(obj)[1][2]
-    dtheta = omega_z * dt
+    dtheta = omega_z * physics_dt
 
     # Обновляем положение робота
 
-    x += delta_distance * np.sin(theta + dtheta / 2)
-    y += delta_distance * np.cos(theta + dtheta / 2)
-
     theta += dtheta
     theta = np.arctan2(np.sin(theta), np.cos(theta))
+    
+    x += delta_distance * np.cos(theta)
+    y += delta_distance * np.sin(theta)
 
     odometry_positions.append([x, y])
 
@@ -258,6 +260,17 @@ for t in logTime:
     )
 
     hit_fractions = [ray[2] for ray in results]
+    # hit_positions = [ray[3] for ray in results]
+
+    # for i, hit_fraction in enumerate(hit_fractions):
+
+    #     if hit_fraction < 1.0:
+
+    #         pb.addUserDebugLine(pos_from[i], hit_positions[i], ray_colors[i], lifeTime=0.1)
+
+    #     else:
+
+    #         pb.addUserDebugLine(pos_from[i], pos_to[i], [0.5, 0.5, 0.5], lifeTime=0.1)
 
     distances = np.array(hit_fractions) * RAY_LENGTH
 
@@ -365,6 +378,15 @@ plt.plot(
     linestyle="-",
     linewidth=2,
     label='Путь робота'
+)
+
+plt.plot(
+    odometry_positions[:, 0],
+    odometry_positions[:, 1],
+    color="yellow",
+    linestyle="-",
+    linewidth=2,
+    label='Одометрия'
 )
 
 plt.scatter(

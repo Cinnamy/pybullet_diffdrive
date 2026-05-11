@@ -57,13 +57,13 @@ def calculate_wheel_speeds_snake(
     # Поворачиваем змейкой
     if (
         dist_45 > DISTANCE_FRONTSIDE
-        and y >= DISTANCE_TURN    
+        and y >= 10 - DISTANCE_TURN    
     ):
         return [d, SPEED, d, SPEED]
 
     if (
         dist_315 > DISTANCE_FRONTSIDE
-        and y <= -DISTANCE_TURN
+        and y <= DISTANCE_TURN
     ):
         return [SPEED, d, SPEED, d]
 
