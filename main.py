@@ -14,13 +14,13 @@ from corners_detection import *
 
 # pb.connect(pb.GUI)
 
-# Настраиваем камеру, с помощью которой смотрим 
-# на визуальное отображение сцены
+# # Настраиваем камеру, с помощью которой смотрим 
+# # на визуальное отображение сцены
 # pb.resetDebugVisualizerCamera(
 #     cameraDistance=7.0,
 #     cameraYaw=250,
 #     cameraPitch=-90,
-#     cameraTargetPosition=[5, 5, 0.5]
+#     cameraTargetPosition=[1, 1, 0.5]
 # )
 
 pb.connect(pb.DIRECT)
@@ -40,6 +40,7 @@ wallsId = pb.loadURDF(
     useFixedBase=True
 )
 
+np.random.seed(42)
 
 ########################################################################
 # Задаём константы
@@ -71,8 +72,7 @@ ray_colors = [
 dt = 1 / 60
 
 # общее время проезда робота
-#maxTime = 880
-maxTime = 500
+maxTime = 870
 # время перехода от проезда по периметру помещения к змейке
 midTime = 460
 
@@ -82,8 +82,10 @@ joint_states = pb.getJointStates(obj, [0, 1, 2, 3])
 
 ENCODER_NOISE = 0.0005
 IMU_NOISE = 0.0005
-RANGE_NOISE = 0.01
-BEARING_NOISE = 0.005
+RANGE_NOISE = 0.05
+BEARING_NOISE = 0.03
+# RANGE_NOISE = 0.01
+# BEARING_NOISE = 0.005
 # ENCODER_NOISE = 0.001
 # IMU_NOISE = 0.001
 # RANGE_NOISE = 0.01
@@ -110,7 +112,8 @@ def mahalanobis(z, z_hat, S):
 
 odometry_positions = []
 ground_truth_positions = []
-lidar_points = []
+ground_truth_lidar_points = []
+slam_lidar_points = []
 all_observed_corners = []
 landmarks = []
 
@@ -220,8 +223,8 @@ for t in logTime:
         (RAY_NUMBER, 1)
     )
 
-    ray_end_x = mu[0] + RAY_LENGTH * np.cos(ray_angles_world)
-    ray_end_y = mu[1] + RAY_LENGTH * np.sin(ray_angles_world)
+    ray_end_x = pos[0] + RAY_LENGTH * np.cos(ray_angles_world)
+    ray_end_y = pos[1] + RAY_LENGTH * np.sin(ray_angles_world)
     ray_end_z = np.full(RAY_NUMBER, pos[2] + 0.1)
 
     pos_to = np.vstack(
@@ -238,7 +241,8 @@ for t in logTime:
 
     distances = np.array(hit_fractions) * RAY_LENGTH
 
-    lidar_points_step = []
+    ground_truth_lidar_points_step = []
+    slam_lidar_points_step = []
 
     merge_distance = 0.1
 
@@ -246,19 +250,35 @@ for t in logTime:
 
         if hit_fraction < 1.0:
 
-            lidar_points_step.append(
+            ground_truth_lidar_points_step.append(
                 [
                     hit_positions[i][0],
                     hit_positions[i][1]
                 ]
             )
 
-    lidar_points.extend(lidar_points_step)
+            world_x = (
+                mu[0]
+                + distances[i] * np.cos(ray_angles_world[i])
+            )
+
+            world_y = (
+                mu[1]
+                + distances[i] * np.sin(ray_angles_world[i])
+            )
+
+            slam_lidar_points_step.append([
+                world_x,
+                world_y
+            ])
+
+    ground_truth_lidar_points.extend(ground_truth_lidar_points_step)
+    slam_lidar_points.extend(slam_lidar_points_step)
 
     observed_corners = detect_corners(
-        lidar_points_step,
-        mu[0],
-        mu[1],
+        slam_lidar_points_step,
+        pos[0],
+        pos[1],
         all_observed_corners
     )
 
@@ -367,7 +387,8 @@ for t in logTime:
 
         if (
             landmark_id == -1
-            or min_dist > 5.99
+            #or min_dist > 5.99
+            or min_dist > 9.21
         ):
 
             landmarks.append(corner)
@@ -401,8 +422,11 @@ for t in logTime:
 
             innovation = z - z_hat
 
-            if np.linalg.norm(innovation) > 1.0:
-                continue
+            # if np.linalg.norm(innovation) > 1.0:
+            #     continue
+
+            innovation[0] = np.clip(innovation[0], -0.3, 0.3)
+            innovation[1] = np.clip(innovation[1], -0.2, 0.2)
 
             innovation[1] = np.arctan2(
                 np.sin(innovation[1]),
@@ -433,11 +457,11 @@ for t in logTime:
     ####################################################################
 
     ray_angles = [
-        mu[2] + np.pi / 2,
-        mu[2] + np.pi / 4,
-        mu[2],
-        mu[2] - np.pi,
-        mu[2] + 3 * np.pi / 4
+        angle + np.pi / 2,
+        angle + np.pi / 4,
+        angle,
+        angle - np.pi,
+        angle + 3 * np.pi / 4
     ]
 
     pos_from = np.tile(
@@ -536,7 +560,9 @@ odometry_positions = np.array(odometry_positions)
 
 ground_truth_positions = np.array(ground_truth_positions)
 
-lidar_points = np.array(lidar_points)
+ground_truth_lidar_points = np.array(ground_truth_lidar_points)
+
+slam_lidar_points = np.array(slam_lidar_points)
 
 all_observed_corners = (
     np.array(all_observed_corners)
@@ -552,12 +578,21 @@ all_observed_corners = (
 plt.figure(figsize=(10, 8))
 
 plt.scatter(
-    lidar_points[:, 0],
-    lidar_points[:, 1],
+    ground_truth_lidar_points[:, 0],
+    ground_truth_lidar_points[:, 1],
     c='#099cd6',
     s=5,
     alpha=0.3,
     label='Стены'
+)
+
+plt.scatter(
+    slam_lidar_points[:, 0],
+    slam_lidar_points[:, 1],
+    c='#f542ec',
+    s=5,
+    alpha=0.3,
+    label='Стены по SLAM'
 )
 
 if len(all_observed_corners) > 0:
