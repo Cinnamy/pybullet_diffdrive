@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from robot_driving import *
 from corners_detection import *
+from utils import *
+from config import *
 
 
 ########################################################################
@@ -20,7 +22,7 @@ from corners_detection import *
 #     cameraDistance=7.0,
 #     cameraYaw=250,
 #     cameraPitch=-90,
-#     cameraTargetPosition=[1, 1, 0.5]
+#     cameraTargetPosition=[1, 1, 1]
 # )
 
 pb.connect(pb.DIRECT)
@@ -42,69 +44,44 @@ wallsId = pb.loadURDF(
 
 np.random.seed(42)
 
-########################################################################
-# Задаём константы
-########################################################################
+# motorIdx = [0, 1, 2, 3]
 
-MAP_WIDTH = 12
-MAP_HEIGHT = 12
-RESOLUTION = 1
+# for i in motorIdx:
+#     dyn_info = pb.getDynamicsInfo(bodyUniqueId=obj, linkIndex=i)
+#     print(f"Wheel {i}:")
+#     print("  mass:", dyn_info[0])
+#     print("  lateralFriction:", dyn_info[1])
+#     print("  localInertiaDiagonal:", dyn_info[2])
+#     print("  localInertialPos:", dyn_info[3])
+#     print("  localInertialOrn:", dyn_info[4])
+#     print("  restitution:", dyn_info[5])
+#     print("  rollingFriction:", dyn_info[6])
+#     print("  spinningFriction:", dyn_info[7])
+#     print()
 
-grid = np.zeros(
-    (
-        int(MAP_WIDTH / RESOLUTION),
-        int(MAP_HEIGHT / RESOLUTION)
-    )
-)
+# # --- настройка трения колёс (резина) ---
+# for wheel in motorIdx:
+#     pb.changeDynamics(
+#         obj,
+#         wheel,
+#         lateralFriction=1.2,     # сцепление с поверхностью
+#         rollingFriction=0.005,    # сопротивление качению
+#         spinningFriction=0.0005   # сопротивление проскальзыванию
+#     )
 
-RAY_LENGTH = 10.0
-RAY_NUMBER = 180
-WHEEL_RADIUS = 0.05
-
-ray_colors = [
-    [1, 0, 0],  # red
-    [0, 1, 0],  # green
-    [0, 0, 1],  # blue
-    [1, 1, 0],  # yellow
-    [0, 1, 1]   # lightblue
-]
+# # --- трение пола ---
+# pb.changeDynamics(
+#     0,  # plane id обычно 0
+#     -1,
+#     lateralFriction=1.0
+# )
 
 dt = 1 / 60
-
-# общее время проезда робота
-maxTime = 870
-# время перехода от проезда по периметру помещения к змейке
-midTime = 460
 
 logTime = np.arange(0, maxTime, dt)
 
 joint_states = pb.getJointStates(obj, [0, 1, 2, 3])
 
-ENCODER_NOISE = 0.0005
-IMU_NOISE = 0.0005
-RANGE_NOISE = 0.05
-BEARING_NOISE = 0.03
-# RANGE_NOISE = 0.01
-# BEARING_NOISE = 0.005
-# ENCODER_NOISE = 0.001
-# IMU_NOISE = 0.001
-# RANGE_NOISE = 0.01
-# BEARING_NOISE = 0.01
-# ENCODER_NOISE = 0
-# IMU_NOISE = 0
-# RANGE_NOISE = 0
-# BEARING_NOISE = 0
-
-def mahalanobis(z, z_hat, S):
-
-    d = z - z_hat
-
-    d[1] = np.arctan2(
-        np.sin(d[1]),
-        np.cos(d[1])
-    )
-
-    return d.T @ np.linalg.inv(S) @ d
 
 ########################################################################
 # Запускаем робота
@@ -240,6 +217,52 @@ for t in logTime:
     hit_positions = [ray[3] for ray in results]
 
     distances = np.array(hit_fractions) * RAY_LENGTH
+
+    # Добавляем шум в лидарные измерения
+
+    distances += np.random.normal(0, LIDAR_NOISE, size=distances.shape)
+    distances = np.clip(distances, 0, RAY_LENGTH)
+
+    control_angles = [
+        0.0,      # 0°   (вперёд)
+        7 * np.pi / 4,      # 45°  (вперёд-вправо)
+        3 * np.pi / 2,            # 90°  (вправо)
+        np.pi / 2,          # 270° (влево)
+        np.pi / 4   # 315° (вперёд-влево)
+    ]
+
+    control_indices = [
+        np.argmin(np.abs(ray_angles - a))
+        for a in control_angles
+    ]
+
+    control_distances = distances[control_indices]
+
+    dist_0, dist_45, dist_90, dist_270, dist_315 = control_distances
+
+    # Вывод управляющих лучей
+
+    # for i, idx in enumerate(control_indices):
+
+    #     hit_fraction = hit_fractions[idx]
+
+    #     if hit_fraction < 1.0:
+
+    #         pb.addUserDebugLine(
+    #             pos_from[idx],
+    #             hit_positions[idx],
+    #             ray_colors[i],
+    #             lifeTime=0.1
+    #         )
+
+    #     else:
+
+    #         pb.addUserDebugLine(
+    #             pos_from[idx],
+    #             pos_to[idx],
+    #             [0.5, 0.5, 0.5],
+    #             lifeTime=0.1
+    #         )
 
     ground_truth_lidar_points_step = []
     slam_lidar_points_step = []
@@ -456,50 +479,52 @@ for t in logTime:
     # Пускаем 5 лучей для управления роботом
     ####################################################################
 
-    ray_angles = [
-        angle + np.pi / 2,
-        angle + np.pi / 4,
-        angle,
-        angle - np.pi,
-        angle + 3 * np.pi / 4
-    ]
+    # ray_angles = [
+    #     angle + np.pi / 2,
+    #     angle + np.pi / 4,
+    #     angle,
+    #     angle - np.pi,
+    #     angle + 3 * np.pi / 4
+    # ]
 
-    pos_from = np.tile(
-        [pos[0], pos[1], pos[2] + 0.1],
-        (5, 1)
-    )
+    # pos_from = np.tile(
+    #     [pos[0], pos[1], pos[2] + 0.1],
+    #     (5, 1)
+    # )
 
-    ray_end_x = mu[0] + RAY_LENGTH * np.cos(ray_angles)
-    ray_end_y = mu[1] + RAY_LENGTH * np.sin(ray_angles)
-    ray_end_z = np.full(5, pos[2] + 0.1)
+    # ray_end_x = mu[0] + RAY_LENGTH * np.cos(ray_angles)
+    # ray_end_y = mu[1] + RAY_LENGTH * np.sin(ray_angles)
+    # ray_end_z = np.full(5, pos[2] + 0.1)
 
-    pos_to = np.vstack(
-        (ray_end_x, ray_end_y, ray_end_z)
-    ).T
+    # pos_to = np.vstack(
+    #     (ray_end_x, ray_end_y, ray_end_z)
+    # ).T
 
-    results = pb.rayTestBatch(
-        pos_from,
-        pos_to
-    )
+    # results = pb.rayTestBatch(
+    #     pos_from,
+    #     pos_to
+    # )
 
-    hit_fractions = [ray[2] for ray in results]
+    # hit_fractions = [ray[2] for ray in results]
 
-    # Вывод на экран в визуальном отображении сцены лучей для управления
+    # # Вывод на экран в визуальном отображении сцены лучей для управления
     # hit_positions = [ray[3] for ray in results]
 
-    # for i, hit_fraction in enumerate(hit_fractions):
+    # # for i, hit_fraction in enumerate(hit_fractions):
 
-    #     if hit_fraction < 1.0:
+    # #     if hit_fraction < 1.0:
 
-    #         pb.addUserDebugLine(pos_from[i], hit_positions[i], ray_colors[i], lifeTime=0.1)
+    # #         pb.addUserDebugLine(pos_from[i], hit_positions[i], ray_colors[i], lifeTime=0.1)
 
-    #     else:
+    # #     else:
 
-    #         pb.addUserDebugLine(pos_from[i], pos_to[i], [0.5, 0.5, 0.5], lifeTime=0.1)
+    # #         pb.addUserDebugLine(pos_from[i], pos_to[i], [0.5, 0.5, 0.5], lifeTime=0.1)
 
-    distances = np.array(hit_fractions) * RAY_LENGTH
+    # distances = np.array(hit_fractions) * RAY_LENGTH
+    # distances += np.random.normal(0, 0.005, size=distances.shape)
+    # distances = np.clip(distances, 0, RAY_LENGTH)
 
-    dist_0, dist_45, dist_90, dist_270, dist_315 = distances
+    # dist_0, dist_45, dist_90, dist_270, dist_315 = distances
 
     # Выбираем режим движения
     if t < midTime:
@@ -570,6 +595,26 @@ all_observed_corners = (
     else np.array([])
 )
 
+# ATE
+ate_rmse, ate_errors = compute_ate(
+    odometry_positions,
+    ground_truth_positions
+)
+
+# Ошибка landmarks
+landmark_rmse = compute_landmark_error(
+    all_observed_corners,
+    TRUE_LANDMARKS
+)
+
+print("\n================ МЕТРИКИ =================")
+
+print(f"ATE RMSE: {ate_rmse:.4f} м")
+
+print(
+    f"Ошибка ориентиров: "
+    f"RMSE = {landmark_rmse:.4f} м"
+)
 
 ########################################################################
 # Отрисовываем график движения
@@ -578,21 +623,21 @@ all_observed_corners = (
 plt.figure(figsize=(10, 8))
 
 plt.scatter(
+    slam_lidar_points[:, 0],
+    slam_lidar_points[:, 1],
+    c='#a0d8de',
+    s=5,
+    alpha=0.3,
+    label='Стены по SLAM'
+)
+
+plt.scatter(
     ground_truth_lidar_points[:, 0],
     ground_truth_lidar_points[:, 1],
     c='#099cd6',
     s=5,
     alpha=0.3,
     label='Стены'
-)
-
-plt.scatter(
-    slam_lidar_points[:, 0],
-    slam_lidar_points[:, 1],
-    c='#f542ec',
-    s=5,
-    alpha=0.3,
-    label='Стены по SLAM'
 )
 
 if len(all_observed_corners) > 0:
@@ -621,7 +666,7 @@ plt.plot(
     color="yellow",
     linestyle="-",
     linewidth=2,
-    label='Одометрия'
+    label='Предсказанный путь'
 )
 
 plt.scatter(
